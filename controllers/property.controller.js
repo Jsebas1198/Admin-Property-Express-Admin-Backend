@@ -89,13 +89,71 @@ const createProperty = async (req, res) => {
     res.status(500).json({ message: e.message });
   }
 };
-const updateroperty = async (req, res) => {};
-const deleteProperty = async (req, res) => {};
+const updateProperty = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, propertyType, location, price, photo } =
+      req.body;
+
+    let photoUrl = "";
+    if (photo) {
+      photoUrl = await cloudinary.uploader.upload(photo);
+    }
+
+    // Update a new property
+    await Property.findByIdAndUpdate(
+      { _id: id },
+      {
+        title,
+        description,
+        propertyType,
+        location,
+        price,
+        photo: photoUrl?.url || photo,
+      }
+    );
+
+    // Send response
+    res.status(200).json({ message: "Property created successfully" });
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Failed to create property, please try again later" });
+  }
+};
+
+const deleteProperty = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const propertyToDelete = await Property.findOneAndDelete({
+      _id: id,
+    }).populate("creator");
+    if (!propertyToDelete) {
+      throw new Error("Property not found");
+    }
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    propertyToDelete.creator.allProperties.pull(propertyToDelete._id);
+
+    await propertyToDelete.creator.save({ session });
+    await session.commitTransaction();
+
+    res.status(200).json({ message: "Property deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res
+      .status(500)
+      .json({ message: "Failed to delete property, please try again later" });
+  }
+};
 
 export {
   getAllProperties,
   getPropertyDetail,
   createProperty,
-  updateroperty,
+  updateProperty,
   deleteProperty,
 };
